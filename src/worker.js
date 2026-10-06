@@ -9,7 +9,7 @@ async function body(req){const text=await req.text();if(text.length>1000000)thro
 const allowedStatus=['Draft','In review','Ready'];
 export default {async fetch(req,env){try{
 const url=new URL(req.url),path=url.pathname;
-if(!path.startsWith('/api/')){const a=assets[path]??(path==='/'?assets['/index.html']:null);if(!a)return new Response('Not found',{status:404});const bytes=Uint8Array.from(atob(a.data),c=>c.charCodeAt(0));return new Response(bytes,{headers:{'content-type':a.type,'cache-control':path.startsWith('/assets/')?'public,max-age=86400':'no-cache','x-content-type-options':'nosniff'}});}
+if(!path.startsWith('/api/')){const a=assets[path]??(path==='/'?assets['/index.html']:null);if(!a)return new Response('Not found',{status:404});const bytes=Uint8Array.from(atob(a.data),c=>c.charCodeAt(0));return new Response(bytes,{headers:{'content-type':a.type,'cache-control':path.startsWith('/assets/')&&!/\/app\.(js|css)$/.test(path)?'public,max-age=86400':'no-cache','x-content-type-options':'nosniff'}});}
 if(req.method!=='GET'&&req.headers.get('origin')!==url.origin)return json({error:'Please use the reporting app to save changes.'},403);
 const D=db(env);const dataResponse=await datasetRoute(req,env,url,json);if(dataResponse)return dataResponse;
 if(path==='/api/state'&&req.method==='GET'){

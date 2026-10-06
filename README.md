@@ -13,6 +13,12 @@ ThinkEngine Report Studio is a React client-reporting app backed by a Cloudflare
 
 CSV imports support UTF-8, quoted values, BOMs, preamble/header-row selection, decimal-point or decimal-comma numbers, currencies, percentages and time values. Limits per file: 2 MB, 10,000 rows, 64 columns and 200,000 cells. Rate and unit-cost metrics support weighted averages; missing values and zero baselines are handled explicitly. Rows labelled as export totals are excluded to prevent double counting.
 
+## Open in your browser
+
+[Open ThinkEngine Report Studio](https://thinkengine-report-studio.thinkengine-8919.chatgpt.site). Sign in with your authorised account. GitHub stores the source; a static preview or GitHub Pages cannot run the D1/R2-backed reporting API.
+
+For a local browser preview, run the Worker using the commands below and open `http://127.0.0.1:5173`.
+
 ## Local development
 
 Use Node.js 22 or newer.
