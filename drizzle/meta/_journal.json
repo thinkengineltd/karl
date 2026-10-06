@@ -15,6 +15,13 @@
       "when": 1791294501002,
       "tag": "0001_fine_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791303063856,
+      "tag": "0002_peaceful_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

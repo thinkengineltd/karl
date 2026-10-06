@@ -5,6 +5,7 @@ ThinkEngine Report Studio is a React client-reporting app backed by a Cloudflare
 ## Reporting features
 
 - Client records, staff profiles, logos and portrait uploads.
+- Agency-settings staff invitations, Administrator/Staff/Viewer roles, deactivation, linked profiles, and user-management activity.
 - Monthly SEO, PPC, paid social, analytics and email report sections.
 - Branded A4 PDF exports with an account-team page and preparer details.
 - CSV uploads, configurable column mapping, KPI snapshots, top 10s and biggest-change tables.
@@ -32,7 +33,19 @@ npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-
 npx wrangler dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 5173 --inspector-port 0
 ```
 
+Also apply `drizzle/0002_peaceful_nightcrawler.sql` once to an existing local database before starting this version. For a fresh database, apply all three migrations in order.
+
+For browser development, copy `.dev.vars.example` to `dist/server/.dev.vars` and uncomment `LOCAL_DEV_AUTH` and `LOCAL_DEV_USER_EMAIL`. This optional development identity works only on loopback URLs without Sites dispatch headers; never configure these variables on the hosted Site.
+
 Apply each migration once to a fresh local database. Production schema changes are generated through `npm run db:generate` and deployed through Sites. Local state, dependency folders, generated build output and secret files are excluded from Git.
+
+## Staff accounts and invitations
+
+The hosted app uses the Sites platform’s authenticated ChatGPT identity and workspace access policy. Every active workspace member may join as Staff; an administrator can pre-register a business account email with another role. Invitations are claimed automatically when the matching account first opens the app. The invitation screen provides the app link to share; it does **not** send an email or add someone to the ChatGPT workspace. A colleague must already be a workspace member. Direct Google sign-in is not implemented.
+
+The verified owner email is seeded in the user-access settings by migration 0002. The first authenticated owner login becomes an administrator. Account identity is bound to the stable Sites user ID after sign-in. Administrators can change others’ roles or deactivate/reactivate access; the owner cannot be demoted or deactivated. All application API routes require an active account, with server-side checks for user management, branding, viewer writes, and staff profile ownership. Viewer PDF downloads use existing exports. Staff profiles link to individual accounts and default the report preparer. Existing reports and team profiles are retained.
+
+The invitation role is applied before first sign-in. Existing users should be managed through their user-list row. Deactivation also cancels unclaimed invitations. User-management actions are recorded in a bounded recent-activity view. This is app-level access management and does not alter workspace membership or give Site source-editing permissions.
 
 ## AI insight writing
 
