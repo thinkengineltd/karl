@@ -1,6 +1,7 @@
+export class APIError extends Error{constructor(message,status,kind='request'){super(message);this.name='APIError';this.status=status;this.kind=kind;}}
 // Never treat an HTML preview, sign-in page, or gateway error as a saved action.
 function responseError(response){
- if(response.status===401||response.redirected)return 'Your sign-in may have expired. Open the live app in another tab and sign in, then retry here. Keep this tab open to preserve your edits.';
+ if(response.status===401||response.redirected)return 'Your session could not be verified in this preview. Open the app in a new tab and sign in, then retry here. Keep this tab open to preserve your edits.';
  if(response.status===403)return 'This request was blocked. Open the live app in your browser and check that you are signed in, then retry.';
  if(response.status===413)return 'The upload is too large for the server. Choose a smaller file and retry.';
  if(response.status===409)return 'This report already exists or has changed. Open the saved report to continue. Keep your current edits until you have checked it.';
@@ -12,10 +13,10 @@ export async function api(path,method='GET',data,extra={}){
  let response;
  try{response=await fetch('/api/'+path,{method,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(data===undefined||isForm?{}:isBlob?{'content-type':data.type}:{'content-type':'application/json'}),...extra},body:data===undefined?undefined:isBlob||isForm?data:JSON.stringify(data)});}catch{throw new Error('Could not connect to the reporting service. Check your connection and retry. Keep your edits; saving was not confirmed.');}
  const type=response.headers.get('content-type')||'';
- if(!/\bapplication\/(?:[\w.-]+\+)?json\b/i.test(type))throw new Error(responseError(response));
+ if(!/\bapplication\/(?:[\w.-]+\+)?json\b/i.test(type))throw new APIError(responseError(response),response.status,response.status===401||response.redirected?'authentication':'request');
  let result;
  try{result=await response.json();}catch{throw new Error('The reporting service returned an unreadable response. Keep your edits; saving was not confirmed. Try again shortly.');}
- if(!response.ok)throw new Error(typeof result?.error==='string'?result.error:responseError(response));
+ if(!response.ok)throw new APIError(typeof result?.error==='string'?result.error:responseError(response),response.status,response.status===401?'authentication':'request');
  if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('The reporting service returned unexpected data. Keep your edits and retry.');
  return result;
 }

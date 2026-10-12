@@ -30,3 +30,5 @@ test('handles invalid JSON and upstream HTML upload errors',async()=>{
  globalThis.fetch=async()=>new Response('<!DOCTYPE html>Error',{status:413,headers:{'content-type':'text/html'}});
  await assert.rejects(api('uploads','POST',new Blob(['x'])),/upload is too large/);
 });
+
+test('JSON authentication failures retain status for a sign-in recovery action',async()=>{globalThis.fetch=async()=>Response.json({error:'Incomplete preview account'},{status:401});await assert.rejects(api('state'),e=>e.kind==='authentication'&&e.status===401&&e.message==='Incomplete preview account');});

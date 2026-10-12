@@ -8,6 +8,7 @@ function displayName(req,email){let name=req.headers.get('oai-authenticated-user
 export async function authenticate(req,DB,env={}){
  const local=['127.0.0.1','localhost','[::1]'].includes(new URL(req.url).hostname)&&!req.headers.has('x-dispatched-app')&&env.LOCAL_DEV_AUTH==='true';
  const identity=req.headers.get('oai-authenticated-user-id')||(local?'local-development':null),email=normalEmail(req.headers.get('oai-authenticated-user-email')||(local?env.LOCAL_DEV_USER_EMAIL:null));
+ if(!identity&&validEmail(email))fail('This preview did not provide a complete signed-in account. Open the app in a new tab and sign in with your business ChatGPT account.',401);
  if(!identity||!validEmail(email))fail('Sign in with your business ChatGPT account to use this app.',401);
  const ownerConfig=await DB.prepare('SELECT data FROM settings WHERE id=?').bind('user_access').first();
  if(!ownerConfig)fail('User access has not been configured. Contact the agency administrator.',503);
