@@ -44,6 +44,10 @@ Apply each migration once to a fresh local database. Production schema changes a
 
 The Services panel uses the catalogue and revision returned with workspace state, avoiding a separate initial catalogue request. Service mutations use `/api/agency/services`; `/api/services` remains an API compatibility alias. Failed loads stop the loading indicator. Authentication failures offer a platform sign-in link in a new tab, retain an entered service name, and allow retry after sign-in. A preview forwarding an email without the platform account ID is rejected; it does not inherit owner permissions.
 
+## Service reporting formats
+
+When adding or editing a service, choose **CSV only**, **Free text only**, or **CSV + free text**. CSV-only sections show import/analysis controls and exclude manual summaries, metrics, images and written dataset commentary. Free-text sections show narrative fields and exclude CSV imports, data tables and images. Combined sections retain both workflows. New and copied reports use the current service default. Existing reports keep their mode snapshot; **Apply current service settings** changes the mode for that report after saving. Stored content is retained when switching modes, and PDF output includes only content supported by the selected mode. Changing a service default does not silently rewrite existing reports or their saved PDFs.
+
 ## Agency services
 
 Agency settings → Services manages the shared service catalogue, stored in D1 settings. Existing service names and client assignments are retained on first use. Rename aliases keep historical client assignments linked; existing report headings and content are snapshots and are not rewritten. Archived offerings disappear from new selections but stay on existing clients and reports. Restore them to make them selectable again. Duplicate names, including historical aliases, are rejected, and revision checks prevent concurrent catalogue edits from overwriting each other. Only administrators can change the catalogue; staff can assign active services to clients and add their sections to reports.
