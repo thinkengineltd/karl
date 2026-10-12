@@ -2,7 +2,7 @@ import {build} from 'esbuild';
 import {createHash} from 'node:crypto';
 import {readFile,writeFile,mkdir,readdir,rm,cp} from 'node:fs/promises';
 await mkdir('dist/server',{recursive:true});await mkdir('dist/client/assets',{recursive:true});
-await build({entryPoints:['src/App.jsx'],bundle:true,minify:true,format:'esm',outfile:'dist/client/assets/app.js',define:{'process.env.NODE_ENV':'"production"'},loader:{'.css':'css'},external:['/assets/*']});
+await build({entryPoints:['src/App.jsx'],bundle:true,minify:true,format:'esm',outfile:'dist/client/assets/app.js',define:{'process.env.NODE_ENV':'"production"'},loader:{'.css':'css','.jpg':'dataurl'},external:['/assets/*']});
 await cp('public','dist/client/assets',{recursive:true});await cp('public/index.html','dist/client/index.html');await rm('dist/client/assets/index.html');
 const assets={};for(const name of await readdir('dist/client/assets')){const data=await readFile('dist/client/assets/'+name);assets['/assets/'+name]={data:data.toString('base64'),type:name.endsWith('.js')?'text/javascript; charset=utf-8':name.endsWith('.css')?'text/css; charset=utf-8':name.endsWith('.svg')?'image/svg+xml':name.endsWith('.ttf')?'font/ttf':name.endsWith('.woff2')?'font/woff2':'image/jpeg'};}
 let html=await readFile('public/index.html','utf8');

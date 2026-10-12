@@ -1,9 +1,10 @@
 import {jsPDF} from 'jspdf';
+import {resolveImage} from './image-assets.js';
 import autoTable from 'jspdf-autotable';
 import {formatValue,formatChange} from './analytics.js';
 const navy=[26,35,82],blue=[39,146,237];
 export const monthName=m=>new Date(m+'-01T12:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-async function imageData(url){if(!url)return null;const r=await fetch(url);if(!r.ok)throw new Error('A report image could not be loaded. Please retry.');const blob=await r.blob();return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const canvas=document.createElement('canvas');canvas.width=im.width;canvas.height=im.height;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,im.width,im.height);ctx.drawImage(im,0,0);res({data:canvas.toDataURL('image/jpeg',.92),w:im.width,h:im.height});};im.onerror=()=>rej(new Error('A report image is invalid.'));im.src=fr.result;};fr.onerror=rej;fr.readAsDataURL(blob);});}
+async function imageData(url){if(!url)return null;const r=await fetch(resolveImage(url));if(!r.ok)throw new Error('A report image could not be loaded. Please retry.');const blob=await r.blob();return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const canvas=document.createElement('canvas');canvas.width=im.width;canvas.height=im.height;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,im.width,im.height);ctx.drawImage(im,0,0);res({data:canvas.toDataURL('image/jpeg',.92),w:im.width,h:im.height});};im.onerror=()=>rej(new Error('A report image is invalid.'));im.src=fr.result;};fr.onerror=rej;fr.readAsDataURL(blob);});}
 function place(pdf,im,x,y,w,h,cover=false){if(!im)return;let ih=w*im.h/im.w,iw=w;if(ih>h){ih=h;iw=h*im.w/im.h;}pdf.addImage(im.data,'JPEG',x,y,iw,ih);}
 export async function makePDF(report,client,agency,profiles,datasets=[]){
 const team=report.team.map(id=>profiles.find(p=>p.id===id)).filter(Boolean),preparer=profiles.find(p=>p.id===report.preparedBy);
