@@ -1,5 +1,19 @@
 {
   "d1": "DB",
   "r2": "BUCKET",
-  "project_id": "appgprj_6ac4f3d81eb88191b32c7e0558df7533"
+  "project_id": "appgprj_6ac4f3d81eb88191b32c7e0558df7533",
+  "plugins": [
+    {
+      "id": "plugin_connector_1p_689987207de08191979cf68eca2941c6",
+      "connector_ids": [
+        "connector_20205bf7d4e99a89d7154bb849718324"
+      ]
+    }
+  ],
+  "connectors": [
+    {
+      "id": "connector_20205bf7d4e99a89d7154bb849718324",
+      "action_selection_mode": "all"
+    }
+  ]
 }

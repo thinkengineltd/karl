@@ -34,7 +34,7 @@ npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-
 npx wrangler dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 5173 --inspector-port 0
 ```
 
-Also apply `drizzle/0002_peaceful_nightcrawler.sql` once to an existing local database before starting this version. For a fresh database, apply all three migrations in order.
+Also apply `drizzle/0002_peaceful_nightcrawler.sql` and `drizzle/0003_small_blade.sql` once to an existing local database before starting this version. For a fresh database, apply all migrations in order.
 
 For browser development, copy `.dev.vars.example` to `dist/server/.dev.vars` and uncomment `LOCAL_DEV_AUTH` and `LOCAL_DEV_USER_EMAIL`. This optional development identity works only on loopback URLs without Sites dispatch headers; never configure these variables on the hosted Site.
 
@@ -54,13 +54,19 @@ Agency settings → Services manages the shared service catalogue, stored in D1 
 
 Custom services selected on a client are added to new report templates and to copied reports if missing. Use **Add service section** in an existing report to include a newer offering, then save the report. Generic sections support a summary, a three-column metrics table, supporting images, and the existing CSV snapshots/comparisons/insights workflow.
 
-## Staff accounts and invitations
+## Internal staff accounts and external invitations
 
-The hosted app uses the Sites platform’s authenticated ChatGPT identity and workspace access policy. Every active workspace member may join as Staff; an administrator can pre-register a business account email with another role. Invitations are claimed automatically when the matching account first opens the app. The invitation screen provides the app link to share; it does **not** send an email or add someone to the ChatGPT workspace. A colleague must already be a workspace member. Direct Google sign-in is not implemented.
+This platform is for internal staff only. There is no client account type or public registration. Unlisted accounts are rejected even if they can open the hosted Site. Existing approved accounts remain available; the verified owner can bootstrap an administrator account. New invitations require an explicit internal-staff confirmation and assign Administrator, Staff, or read-only staff permissions.
 
-The verified owner email is seeded in the user-access settings by migration 0002. The first authenticated owner login becomes an administrator. Account identity is bound to the stable Sites user ID after sign-in. Administrators can change others’ roles or deactivate/reactivate access; the owner cannot be demoted or deactivated. All application API routes require an active account, with server-side checks for user management, branding, viewer writes, and staff profile ownership. Viewer PDF downloads use existing exports. Staff profiles link to individual accounts and default the report preparer. Existing reports and team profiles are retained.
+In Agency settings, choose whether staff use an account inside or outside the Business workspace. Workspace invitations register the staff account and provide a shareable link. External invitations additionally use the request-scoped Sites connector to inspect and update the hosting allowlist. The connector declaration uses the canonical Sites plugin and connector confirmed eligible for this workspace. Hosted calls use the submitting administrator’s connection, consent, and provider permissions; source-editing credentials are not used or stored in the application.
 
-The invitation role is applied before first sign-in. Existing users should be managed through their user-list row. Deactivation also cancels unclaimed invitations. User-management actions are recorded in a bounded recent-activity view. This is app-level access management and does not alter workspace membership or give Site source-editing permissions.
+External grants preserve the existing audience and all current user emails. Other visitors and groups are retained. Only provider-confirmed grants permit external staff to claim an invitation. If hosting access fails or needs reconnection, the pending staff record stays visible with an accurate failure status and a Retry access action. A retry reads the current provider state before deciding whether a write is needed. Uncertain writes are reconciled by reading rather than blindly replayed. No email delivery is claimed because the hosting result does not confirm delivery; administrators can share the app link directly.
+
+Deactivation or cancellation blocks app data first, then attempts hosted revocation. Failed revocations remain visible and can be retried; app access stays blocked throughout. Existing reports and profiles remain saved. Owner and self-demotion safeguards are retained. Staff must use the invited email on first sign-in; subsequent access uses the stable platform identity. Direct Google sign-in is not implemented.
+
+`STAFF_BOOTSTRAP_INVITES` is optional owner-approved runtime onboarding configuration for explicitly authorised staff with an independently verified hosted grant. It is stored as a runtime secret, never in Git or browser code. It inserts missing invitations once and does not reactivate disabled accounts. Normal invitations use the database and Sites connection, not this configuration.
+
+Validation: unit tests use a mocked Sites connector to check grant/revoke reconciliation and failures. Local previews do not have hosted connector write authority and must show an unconfirmed status for external grants. A live external grant for the user-provided test account was confirmed through the native Sites operation. Full acceptance and report creation by that external account require that person to sign in and remain a separate live check.
 
 ## AI insight writing
 

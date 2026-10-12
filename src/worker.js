@@ -10,11 +10,11 @@ async function seed(env){const D=db(env); await D.batch([D.prepare('INSERT OR IG
 const validString=(s,max=200)=>typeof s==='string'&&s.trim().length>0&&s.length<=max;
 async function body(req){const text=await req.text();if(text.length>1000000)throw Object.assign(new Error('This form is too large.'),{status:413});return JSON.parse(text);}
 const allowedStatus=['Draft','In review','Ready'];
-export default {async fetch(req,env){try{
+export default {async fetch(req,env,ctx){try{
 const url=new URL(req.url),path=url.pathname;
 if(!path.startsWith('/api/')){const a=assets[path]??(path==='/'?assets['/index.html']:null);if(!a)return new Response('Not found',{status:404});const bytes=Uint8Array.from(atob(a.data),c=>c.charCodeAt(0));return new Response(bytes,{headers:{'content-type':a.type,'cache-control':path.startsWith('/assets/')&&!/\/app\.(js|css)$/.test(path)?'public,max-age=86400':'no-cache','x-content-type-options':'nosniff'}});}
 if(req.method!=='GET'&&req.headers.get('origin')!==url.origin)return json({error:'Please use the reporting app to save changes.'},403);
-const D=db(env);const user=await authenticate(req,D,env);authorize(user,path,req.method);const usersResponse=await usersRoute(req,D,url,user,json);if(usersResponse)return usersResponse;const servicesResponse=await servicesRoute(req,D,url,user,json);if(servicesResponse)return servicesResponse;const dataResponse=await datasetRoute(req,env,url,json);if(dataResponse)return dataResponse;
+const D=db(env);const user=await authenticate(req,D,env);authorize(user,path,req.method);const usersResponse=await usersRoute(req,D,url,user,json,{connector:ctx?.props?.CONNECTORS});if(usersResponse)return usersResponse;const servicesResponse=await servicesRoute(req,D,url,user,json);if(servicesResponse)return servicesResponse;const dataResponse=await datasetRoute(req,env,url,json);if(dataResponse)return dataResponse;
 if(path==='/api/state'&&req.method==='GET'){
 const a=await D.prepare('SELECT data FROM settings WHERE id=?').bind('agency').first();if(!a)await seed(env);
 const [c,p,r,s]=await Promise.all([D.prepare('SELECT data FROM clients ORDER BY created_at DESC').all(),D.prepare('SELECT data FROM profiles').all(),D.prepare('SELECT data,revision,updated_at FROM reports ORDER BY month DESC,updated_at DESC').all(),D.prepare('SELECT data FROM settings WHERE id=?').bind('agency').first()]);
