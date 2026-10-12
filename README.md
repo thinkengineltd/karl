@@ -5,6 +5,7 @@ ThinkEngine Report Studio is a React client-reporting app backed by a Cloudflare
 ## Reporting features
 
 - Client records, staff profiles, logos and portrait uploads.
+- Administrator-managed services: add, rename, archive and restore offerings in Agency settings. Client service selections use the shared catalogue. New custom services have report sections with summaries, metrics, CSV imports and PDF output.
 - Agency-settings staff invitations, Administrator/Staff/Viewer roles, deactivation, linked profiles, and user-management activity.
 - Monthly SEO, PPC, paid social, analytics and email report sections.
 - Branded A4 PDF exports with an account-team page and preparer details.
@@ -38,6 +39,12 @@ Also apply `drizzle/0002_peaceful_nightcrawler.sql` once to an existing local da
 For browser development, copy `.dev.vars.example` to `dist/server/.dev.vars` and uncomment `LOCAL_DEV_AUTH` and `LOCAL_DEV_USER_EMAIL`. This optional development identity works only on loopback URLs without Sites dispatch headers; never configure these variables on the hosted Site.
 
 Apply each migration once to a fresh local database. Production schema changes are generated through `npm run db:generate` and deployed through Sites. Local state, dependency folders, generated build output and secret files are excluded from Git.
+
+## Agency services
+
+Agency settings → Services manages the shared service catalogue, stored in D1 settings. Existing service names and client assignments are retained on first use. Rename aliases keep historical client assignments linked; existing report headings and content are snapshots and are not rewritten. Archived offerings disappear from new selections but stay on existing clients and reports. Restore them to make them selectable again. Duplicate names, including historical aliases, are rejected, and revision checks prevent concurrent catalogue edits from overwriting each other. Only administrators can change the catalogue; staff can assign active services to clients and add their sections to reports.
+
+Custom services selected on a client are added to new report templates and to copied reports if missing. Use **Add service section** in an existing report to include a newer offering, then save the report. Generic sections support a summary, a three-column metrics table, supporting images, and the existing CSV snapshots/comparisons/insights workflow.
 
 ## Staff accounts and invitations
 
