@@ -10,7 +10,8 @@ ThinkEngine Report Studio is a React client-reporting app backed by a Cloudflare
 - Monthly SEO, PPC, paid social, analytics and email report sections.
 - Branded A4 PDF exports with an account-team page and preparer details.
 - CSV and screenshot uploads, reviewed extraction, configurable column mapping, KPI snapshots, top 10s and biggest-change tables.
-- Exact previous-calendar-month comparisons, automatically matched by client, section and dataset name, or supplied as a separate baseline CSV.
+- Nineteen versioned platform templates for Facebook, Instagram, LinkedIn, TikTok, Google Ads, GA4 and Search Console, with separate organic, paid and content reporting options. Administrators can edit metric aliases, definitions, units and aggregations, duplicate templates, and archive them in Agency settings.
+- Exact previous-calendar-month comparisons, automatically matched by client, section, dataset name, platform, account and template report type, or supplied as a separate reviewed baseline.
 - Editable AI insight drafts and manually written commentary. Only reviewed commentary is included in PDFs; stale commentary is flagged when source comparisons change.
 
 CSV imports support UTF-8, quoted values, BOMs, preamble/header-row selection, decimal-point or decimal-comma numbers, currencies, percentages and time values. Limits per file: 2 MB, 10,000 rows, 64 columns and 200,000 cells. Rate and unit-cost metrics support weighted averages; missing values and zero baselines are handled explicitly. Rows labelled as export totals are excluded to prevent double counting.
@@ -95,3 +96,13 @@ For local testing, copy `.dev.vars.example` to `dist/server/.dev.vars` after bui
 - `src/pdf.js`: branded PDF exports and data visualisations.
 - `src/worker.js`: application API and file serving.
 - `db/schema.ts` and `drizzle/`: D1 schema and migrations.
+
+## Platform screenshot and CSV imports
+
+In a report, open **Data & insights → Import screenshot** (or **Import CSV**). Choose the platform, report type and consistent account/page/property identifier. Review OCR labels and values, then confirm metric mappings, currency, percentage scale and reporting months. Original screenshots and reviewed data stay attached to the monthly report and its PDF provenance. Generic manual imports remain available.
+
+Templates recognise common headings and can derive missing CTR, CPC, CPA, CPL and ROAS only when the required numerator and denominator are available. Zero denominators remain unavailable. Unique reach, users and follower totals use snapshot aggregation: conflicting values have no overall total and are flagged rather than summed. Platform engagement rates are preserved as reported; social rates are not inferred using an assumed denominator.
+
+Every platform import stores a template version and definition snapshot. Template changes affect future imports; incompatible metric definitions or units prevent misleading previous-month comparisons. Automatic comparisons require the same dataset name, report section, client, platform, template and account in the exact preceding month. Use one consistent account identifier each month.
+
+Extraction uses browser OCR and requires staff review. Crop to visible tables or metric cards; it does not infer values from chart shapes or retrieve hidden/off-screen data. The templates and real browser OCR flow have been checked with representative fixtures; each platform's live dashboard layouts still need verification against agency exports. AI-written commentary separately requires an OpenAI API connection; without that connection, calculated summaries and manual insights remain available.

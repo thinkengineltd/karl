@@ -6,6 +6,7 @@ export function numeric(value,locale='standard'){
  let s=String(value??'').trim();if(!s||/^(?:-|–|—|n\/a|null|not set|not provided)$/i.test(s))return null;
  if(/^\d{1,3}:\d{2}(?::\d{2})?$/.test(s)){const p=s.split(':').map(Number);return p.length===3?p[0]*3600+p[1]*60+p[2]:p[0]*60+p[1];}
  if(/^\d+(?:\.\d+)?s$/i.test(s))s=s.slice(0,-1);
+ const duration=s.match(/^(?:(\d+(?:\.\d+)?)h\s*)?(?:(\d+(?:\.\d+)?)m\s*)?(?:(\d+(?:\.\d+)?)s)?$/i);if(duration&&duration.slice(1).some(Boolean))return Number(duration[1]||0)*3600+Number(duration[2]||0)*60+Number(duration[3]||0);
  const negative=/^\(.*\)$/.test(s);s=s.replace(/[£$€%\s\u00a0]/g,'').replace(/^\((.*)\)$/,'$1').replace(/−/g,'-');
  s=locale==='european'?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
  if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s))return null;
@@ -57,22 +58,22 @@ export function validateMapping(parsed,config){
  if(!column(config.dimensionColumn))throw new Error('Select a label column.');
  if(!Array.isArray(config.metrics)||!config.metrics.length||config.metrics.length>12)throw new Error('Choose between one and twelve metrics.');
  const keys=new Set();for(const m of config.metrics){if(!column(m.column)||typeof m.key!=='string'||!m.key||keys.has(m.key)||!m.label||m.label.length>100)throw new Error('Check your metric mapping. Metric names must be unique.');keys.add(m.key);
- if(!['sum','average','weighted'].includes(m.aggregation)||!['number','gbp','usd','eur','percent','ratio','rank','seconds'].includes(m.format)||!['higher','lower','neutral'].includes(m.direction))throw new Error('Check metric formats and aggregation.');
+ if(!['sum','average','weighted','snapshot'].includes(m.aggregation)||!['number','gbp','usd','eur','percent','ratio','rank','seconds'].includes(m.format)||!['higher','lower','neutral'].includes(m.direction))throw new Error('Check metric formats and aggregation.');
  if(m.aggregation==='weighted'&&(!column(m.weightColumn)||m.weightColumn===m.column))throw new Error('Choose a different weight column for weighted averages.');}
  if(!keys.has(config.rankMetric))throw new Error('Select a metric for the top 10.');
  if(!['standard','european'].includes(config.locale))throw new Error('Choose a valid number format.');
  return config;
 }
 export function aggregate(parsed,config){
- validateMapping(parsed,config);const groups=new Map(),totals=Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0}]));let excluded=0,invalid=0,missingWeights=0;
+ validateMapping(parsed,config);const groups=new Map(),totals=Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]));let excluded=0,invalid=0,missingWeights=0;
  for(const row of parsed.rows){const label=String(row[config.dimensionColumn]??'').trim();
  if(!label||/^(?:grand\s*total|total|totals)(?:\s*[:\-].*)?$/i.test(label)||/^(?:account|campaign|filtered)\s+total/i.test(label)){excluded++;continue;}
- const key=label.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');if(!groups.has(key))groups.set(key,{key,label,stats:Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0}]))});const group=groups.get(key);
+ const key=label.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');if(!groups.has(key))groups.set(key,{key,label,stats:Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]))});const group=groups.get(key);
  for(const m of config.metrics){const n=numeric(row[m.column],config.locale);if(n===null||(m.format==='rank'&&n<=0)){invalid++;continue;}let weight=1;if(m.aggregation==='weighted'){weight=numeric(row[m.weightColumn],config.locale);if(weight===null||weight<=0){missingWeights++;continue;}}
- for(const target of [totals[m.key],group.stats[m.key]]){target.sum+=n*weight;target.count++;target.weight+=weight;}}
+ for(const target of [totals[m.key],group.stats[m.key]]){target.sum+=n*weight;target.count++;target.weight+=weight;target.min=Math.min(target.min,n);target.max=Math.max(target.max,n);}}
  }
- const value=(x,m)=>!x.count?null:m.aggregation==='sum'?x.sum:x.sum/x.weight;
- return {rows:[...groups.values()].map(g=>({key:g.key,label:g.label,values:Object.fromEntries(config.metrics.map(m=>[m.key,value(g.stats[m.key],m)]))})),totals:Object.fromEntries(config.metrics.map(m=>[m.key,value(totals[m.key],m)])),sourceRows:parsed.rows.length,includedRows:parsed.rows.length-excluded,excludedRows:excluded,invalidCells:invalid,missingWeights};
+ const value=(x,m)=>!x.count?null:m.aggregation==='snapshot'?(x.min===x.max?x.min:null):m.aggregation==='sum'?x.sum:x.sum/x.weight;
+ return {rows:[...groups.values()].map(g=>({key:g.key,label:g.label,values:Object.fromEntries(config.metrics.map(m=>[m.key,value(g.stats[m.key],m)]))})),totals:Object.fromEntries(config.metrics.map(m=>[m.key,value(totals[m.key],m)])),sourceRows:parsed.rows.length,includedRows:parsed.rows.length-excluded,excludedRows:excluded,invalidCells:invalid,missingWeights,snapshotConflicts:config.metrics.filter(m=>m.aggregation==='snapshot'&&totals[m.key].count&&totals[m.key].min!==totals[m.key].max).map(m=>m.label)};
 }
 export function formatValue(value,metric){if(value===null||value===undefined)return '—';const n=Number(value),format=metric.format;const opts={maximumFractionDigits:format==='rank'?1:2};
  if(['gbp','usd','eur'].includes(format))return new Intl.NumberFormat('en-GB',{style:'currency',currency:format.toUpperCase(),maximumFractionDigits:2}).format(n);
@@ -87,6 +88,8 @@ export function buildAnalysis(current,baseline,config,{month,baselineSource=null
  if(current.excludedRows)warnings.push(current.excludedRows+' blank or total rows excluded.');if(current.invalidCells)warnings.push(current.invalidCells+' missing or invalid metric cells excluded; missing values are not treated as zero.');if(current.missingWeights)warnings.push(current.missingWeights+' cells lacked positive weights and were excluded from weighted averages.');
  for(const m of config.metrics){if(m.aggregation==='average'&&/rate|ctr|cpc|cpm|cpa|roas|position/.test(m.key))warnings.push(m.label+' uses an unweighted average. Select a weight column when available.');}
  if(baseline?.invalidCells)warnings.push('Previous-month data has '+baseline.invalidCells+' missing or invalid metric cells.');
+ for(const label of current.snapshotConflicts||[])warnings.push(label+' has multiple distinct snapshot values. Its overall total is unavailable; unique audiences/follower totals are not summed.');
+ for(const label of baseline?.snapshotConflicts||[])warnings.push('Previous-month '+label+' has conflicting snapshot values.');
  const snapshots=config.metrics.map(m=>({...m,current:current.totals[m.key]??null,previous:baseline?.totals[m.key]??null,change:change(current.totals[m.key],baseline?.totals[m.key],m)}));
  const top10ByMetric={},moversByMetric={};
  for(const m of config.metrics){const enriched=current.rows.filter(r=>r.values[m.key]!==null).map(r=>({label:r.label,key:r.key,current:r.values[m.key],previous:previous.get(r.key)?.values[m.key]??null,change:change(r.values[m.key],previous.get(r.key)?.values[m.key],m),isNew:!!baseline&&!previous.has(r.key)}));
@@ -95,8 +98,8 @@ export function buildAnalysis(current,baseline,config,{month,baselineSource=null
  const currentKeys=new Set(current.rows.map(r=>r.key));const disappeared=(baseline?.rows||[]).filter(r=>!currentKeys.has(r.key)).slice(0,10).map(r=>r.label);
  return {month,previousMonth:previousMonth(month),baselineSource,baselineLabel,hasBaseline:!!baseline,snapshots,top10ByMetric,moversByMetric,disappeared,warnings,rows:current.sourceRows,groupCount:current.rows.length,baselineRows:baseline?.sourceRows||0,generatedAt:new Date().toISOString()};
 }
-export function factualSummary(analysis){const lines=[];for(const m of analysis.snapshots.slice(0,6)){if(m.current===null)continue;let text=m.label+': '+formatValue(m.current,m)+'.';if(m.previous!==null)text+=' Previous month: '+formatValue(m.previous,m)+' ('+formatChange(m.change,m)+').';lines.push(text);}if(!analysis.hasBaseline)lines.push('No previous-month CSV is available. Month-on-month changes cannot be assessed.');return lines.join('\n');}
-export function analysisFacts(analysis,rankMetric){const facts=[{id:'data_coverage',text:analysis.rows+' source rows and '+analysis.groupCount+' label groups in the current file; '+analysis.baselineRows+' source rows in the previous file.'}];for(const m of analysis.snapshots){facts.push({id:'metric_'+m.key,text:m.label+': current '+formatValue(m.current,m)+', previous '+formatValue(m.previous,m)+', change '+formatChange(m.change,m)+'.',aggregation:m.aggregation});}
+export function factualSummary(analysis){const lines=[];for(const m of analysis.snapshots.slice(0,6)){if(m.current===null)continue;let text=m.label+': '+formatValue(m.current,m)+'.';if(m.previous!==null)text+=' Previous month: '+formatValue(m.previous,m)+' ('+formatChange(m.change,m)+').';lines.push(text);}if(!analysis.hasBaseline)lines.push('No comparable previous-month data is available. Month-on-month changes cannot be assessed.');return lines.join('\n');}
+export function analysisFacts(analysis,rankMetric){const facts=[{id:'data_coverage',text:analysis.rows+' source rows and '+analysis.groupCount+' label groups in the current file; '+analysis.baselineRows+' source rows in the previous file.'}];for(const m of analysis.snapshots){facts.push({id:'metric_'+m.key,text:m.label+': current '+formatValue(m.current,m)+', previous '+formatValue(m.previous,m)+', change '+formatChange(m.change,m)+'.',aggregation:m.aggregation,definition:m.definition||null});}
  const metric=analysis.snapshots.find(m=>m.key===rankMetric);for(const [i,r] of (analysis.top10ByMetric[rankMetric]||[]).entries())facts.push({id:'top_'+(i+1),text:'#'+(i+1)+' '+r.label+': '+formatValue(r.current,metric)+'; previous '+formatValue(r.previous,metric)+'; '+(r.isNew?'not present in the baseline file':formatChange(r.change,metric))+'.'});
  for(const [i,r] of (analysis.moversByMetric[rankMetric]||[]).entries())facts.push({id:'movement_'+(i+1),text:r.label+': current '+formatValue(r.current,metric)+', previous '+formatValue(r.previous,metric)+', change '+formatChange(r.change,metric)+'.'});
  return facts;
