@@ -9,7 +9,7 @@ ThinkEngine Report Studio is a React client-reporting app backed by a Cloudflare
 - Agency-settings staff invitations, Administrator/Staff/Viewer roles, deactivation, linked profiles, and user-management activity.
 - Monthly SEO, PPC, paid social, analytics and email report sections.
 - Branded A4 PDF exports with an account-team page and preparer details.
-- CSV uploads, configurable column mapping, KPI snapshots, top 10s and biggest-change tables.
+- CSV and screenshot uploads, reviewed extraction, configurable column mapping, KPI snapshots, top 10s and biggest-change tables.
 - Exact previous-calendar-month comparisons, automatically matched by client, section and dataset name, or supplied as a separate baseline CSV.
 - Editable AI insight drafts and manually written commentary. Only reviewed commentary is included in PDFs; stale commentary is flagged when source comparisons change.
 
@@ -43,6 +43,16 @@ Apply each migration once to a fresh local database. Production schema changes a
 ## Preview sessions
 
 The Services panel uses the catalogue and revision returned with workspace state, avoiding a separate initial catalogue request. Service mutations use `/api/agency/services`; `/api/services` remains an API compatibility alias. Failed loads stop the loading indicator. Authentication failures offer a platform sign-in link in a new tab, retain an entered service name, and allow retry after sign-in. A preview forwarding an email without the platform account ID is rejected; it does not inherit owner permissions.
+
+## Screenshot ingestion
+
+In a report, open **Data & insights → Import screenshot**. Upload a clear PNG, JPG or WebP table or KPI-card screenshot (up to 8 MB and 20 megapixels), optionally with the exact previous month’s screenshot. English OCR runs in the browser using bundled Tesseract.js assets and language data; no API key or third-party image service is required. Charts without visible numbers and complex layouts are not reliable extraction sources.
+
+Review every extracted cell beside the original screenshot, correct headings/values, and explicitly confirm the reporting months and units. The next step uses the existing column mapping and aggregation controls. Only approved imports save data. Original screenshots, the reviewed CSV representation, and normalized comparison data are stored in R2; source provenance and approval time are retained on the dataset. Removing the dataset removes its associated source images too.
+
+Previous-month comparisons either use the uploaded baseline or automatically match the same client, service section and dataset name in the exact previous calendar month. Screenshot and CSV datasets share the same normalization and compatibility checks. Keep dataset names, dimension headings, units and aggregations consistent. Missing values and absent baselines are not converted into invented changes. PDF output includes reviewed data and source provenance. Screenshot imports are available for data-only/combined service modes; free-text-only services remain text only.
+
+The build copies only the browser OCR worker, LSTM core, and English model needed at runtime; no CDN is used. Development browser QA verifies actual OCR on two table screenshots, stored originals, automatic previous-report comparisons, an explicit baseline upload, reviewed corrections, cleanup and PDF output. Quantitative accuracy still requires user review of every screenshot.
 
 ## Service reporting formats
 
