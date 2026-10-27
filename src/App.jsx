@@ -1,6 +1,6 @@
 import {draftKey,reportContent,writeDraft,readDraft,clearDraft,canRestoreDraft,restoreDraft,downloadDraft,draftReviewText} from './report-drafts.js';
 import {TemplateSettings} from './TemplateSettings.jsx';
-import React,{useEffect,useState,useRef} from 'react';
+import React,{useEffect,useState,useRef,useId} from 'react';
 import {createRoot} from 'react-dom/client';
 import {LayoutDashboard,FileText,Building2,Users,Settings,Plus,Search,ChevronDown,ChevronRight,Download,ArrowUpRight,Check,Clock,X,Upload,Image as ImageIcon,Trash2,Save,Eye,MoreHorizontal,Menu,CheckCircle2,FolderOpen,Loader2,BarChart3,Target,Globe,Mail,Layers,Copy,CalendarDays,Briefcase,AlertCircle} from 'lucide-react';
 import {sectionTemplates} from './data.js';
@@ -16,7 +16,7 @@ const cn=(...a)=>a.filter(Boolean).join(' ');
 
 function Badge({status}){return <span className={cn('badge',status?.toLowerCase().replace(' ','-'))}><span/>{status}</span>}
 function Modal({title,children,onClose,wide=false}){const ref=useRef();useEffect(()=>{const before=document.activeElement;ref.current?.focus();const onKey=e=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const items=ref.current?.querySelectorAll('button,input,select,textarea,a[href]');const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};document.addEventListener('keydown',onKey);return()=>{document.removeEventListener('keydown',onKey);before?.focus();}},[]);return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className={cn('modal',wide&&'wide')} role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}><header><h2>{title}</h2><button className="icon-btn" aria-label="Close dialog" onClick={onClose}><X size={20}/></button></header>{children}</section></div>}
-function Field({label,children}){return <label className="field"><span>{label}</span>{children}</label>}
+function Field({label,children}){const generated=useId(),id=children?.props?.id||generated;return <label className="field" htmlFor={id}><span>{label}</span>{React.isValidElement(children)?React.cloneElement(children,{id,'aria-label':children.props['aria-label']||label}):children}</label>}
 function App(){
 const [state,setState]=useState(null),[error,setError]=useState(''),[nav,setNav]=useState(new URLSearchParams(window.location.search).get('settings')==='users'?'Agency settings':'Overview'),[search,setSearch]=useState(''),[status,setStatus]=useState('All statuses'),[modal,setModal]=useState(null),[editing,setEditing]=useState(null),[section,setSection]=useState('seo'),[busy,setBusy]=useState(false),[toast,setToast]=useState(''),[clientFocus,setClientFocus]=useState(null),[preview,setPreview]=useState(null),[mobile,setMobile]=useState(false),[period,setPeriod]=useState('All months'),[dataSection,setDataSection]=useState('all');
 const [recovery,setRecovery]=useState(null),[draftStatus,setDraftStatus]=useState('');const savedReport=useRef(null);
