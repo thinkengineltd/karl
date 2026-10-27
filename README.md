@@ -106,3 +106,15 @@ Templates recognise common headings and can derive missing CTR, CPC, CPA, CPL an
 Every platform import stores a template version and definition snapshot. Template changes affect future imports; incompatible metric definitions or units prevent misleading previous-month comparisons. Automatic comparisons require the same dataset name, report section, client, platform, template and account in the exact preceding month. Use one consistent account identifier each month.
 
 Extraction uses browser OCR and requires staff review. Crop to visible tables or metric cards; it does not infer values from chart shapes or retrieve hidden/off-screen data. The templates and real browser OCR flow have been checked with representative fixtures; each platform's live dashboard layouts still need verification against agency exports. AI-written commentary separately requires an OpenAI API connection; without that connection, calculated summaries and manual insights remain available.
+
+## Import accuracy and recovery drafts
+
+New imports store a review version. Uploaded previous-month files have independent number formats, currencies and percentage scales; symbol-free percentages require confirmation. Compatible ratio/percent rates are normalized before comparison; incompatible currencies, definitions and calculations are excluded. The app and PDF show fully comparable, partially comparable or no comparable metrics.
+
+K/k, uppercase M and B/b notation is expanded while the original CSV/screenshot remains intact. Expanded values and dependent calculations are approximate and disclosed in data notes. Lowercase m is ambiguous for counts; correct it to uppercase M for millions or review the value manually. Valid per-post reach/unique snapshots remain importable even when no combined total exists.
+
+Affected legacy rate imports and imports with invalid cells show a source-review warning. Their saved calculations, source files and stored PDFs are preserved. Reimport reviewed source data to confirm both months' units.
+
+Report and commentary recovery drafts are stored in this browser, scoped to the signed-in staff member and report. Drafts do not replace server saves. Refresh/close warnings apply to unsaved edits. A report draft can be restored only against its original revision; otherwise download/copy it and reconcile with the latest report. Storage failures are shown so staff can save manually. Shared computers should use separate browser profiles.
+
+AI connection setup is unchanged by this update.
