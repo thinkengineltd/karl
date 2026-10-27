@@ -25,7 +25,7 @@ try{
  assert.equal(datasets[0].analysis.snapshots[0].change.points,5);assert.equal(datasets[0].analysis.snapshots[0].previous,5);assert.equal(datasets[0].analysis.comparisonStatus,'full');
  console.log('PASS: independent previous-month percentage scale in browser');
  const source=await browser.newPage({viewport:{width:1200,height:320}});
- await source.setContent('<html><body style="margin:35px;font:28px Arial"><table style="width:100%;border-collapse:collapse;text-align:left"><tr><th style="width:55%">Post</th><th>Reach</th></tr><tr><td style="padding-top:25px">Alpha</td><td>1.2K</td></tr><tr><td style="padding-top:25px">Beta</td><td>2.4K</td></tr></table></body></html>');
+ await source.setContent('<html><head><style>td{padding:20px 0}</style></head><body style="margin:35px;font:28px Arial"><table style="width:100%;border-collapse:collapse;text-align:left"><tr><th style="width:55%">Post</th><th>Reach</th></tr><tr><td>Alpha</td><td>1.2K</td></tr><tr><td>Beta</td><td>2.4K</td></tr></table></body></html>');
  const image=await source.screenshot();await source.close();
  await page.getByRole('button',{name:'Import screenshot',exact:true}).click();await page.getByLabel('Dataset name',{exact:true}).fill('Screenshot reach QA');
  await page.getByLabel('Source platform',{exact:true}).selectOption('instagram');await page.getByLabel('Platform report type',{exact:true}).selectOption('instagram-posts');await page.getByLabel('Platform account',{exact:true}).fill('QA account');
