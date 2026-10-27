@@ -1,3 +1,4 @@
+import {extractScreenshotTable} from '../src/screenshot-data.js';
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';
 import {defaultPlatformTemplates as templates,platforms,templateMapping,contextMatches,datasetMatchKey,sourceContext,periodWarnings} from '../src/platform-templates.js';
 import {validateTemplate,getPlatformTemplates,templateRoute} from '../src/template-api.js';import {parseCSV,aggregate,numeric,buildAnalysis,inferMapping,alignBaseline,formatValue,comparisonLabel} from '../src/analytics.js';import {datasetRoute} from '../src/dataset-api.js';
@@ -50,3 +51,5 @@ test('recovery drafts are scoped to staff/report and never silently overwrite a 
  const local=storage(),report={id:'r',revision:2,sections:[{id:'social',notes:'Draft note'}],pdf:'new.pdf'},draft=writeDraft(local,'staff-a',report,0);assert.equal(readDraft(local,'staff-b','r'),null);assert.equal(readDraft(local,'staff-a','other'),null);assert.equal(readDraft(local,'staff-a','r').report.sections[0].notes,'Draft note');assert.ok(canRestoreDraft(draft,report));assert.equal(canRestoreDraft(draft,{...report,revision:3}),false);assert.throws(()=>restoreDraft(draft,{...report,revision:3}),/changed/);assert.equal(restoreDraft(draft,report).pdf,'new.pdf');clearDraft(local,'staff-a','r');assert.equal(readDraft(local,'staff-a','r'),null);
 });
 test('corrupt drafts are ignored and storage failures are surfaced',()=>{const local=storage();local.setItem(draftKey('a','r'),'bad json');assert.equal(readDraft(local,'a','r'),null);assert.throws(()=>writeDraft({setItem(){throw new Error('full')}},'a',{id:'r',revision:1}),/full/);});
+
+test('screenshot extraction recognises abbreviated table and KPI values',()=>{const table=extractScreenshotTable('Post    Reach\nAlpha    1.2K\nBeta    2.4K',95);assert.deepEqual(table.headers,['Post','Reach']);assert.deepEqual(table.rows,[['Alpha','1.2K'],['Beta','2.4K']]);const cards=extractScreenshotTable('Views\n1.2M',95);assert.deepEqual(cards.rows,[['Overall','1.2M']]);});
