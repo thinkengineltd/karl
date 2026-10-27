@@ -3,6 +3,9 @@ on:
   pull_request:
   push:
     branches: [main]
+concurrency:
+  group: report-checks-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -35,6 +38,8 @@ jobs:
           cat work/preview.log
           exit 1
       - run: node test/report-browser.mjs
+      - name: Package verified build
+        run: tar -czf work/report-studio-deploy.tar.gz .openai/hosting.json dist/server/index.js dist/server/wrangler.json dist/server/drizzle drizzle
       - name: Retain QA evidence
         if: always()
         uses: actions/upload-artifact@v4
