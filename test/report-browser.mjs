@@ -5,7 +5,7 @@ import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
 await mkdir('work/browser',{recursive:true});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const page=await browser.newPage({viewport:{width:1480,height:1000},acceptDownloads:true,extraHTTPHeaders:{'oai-authenticated-user-id':'qa-owner','oai-authenticated-user-email':'karl@thinkengine.co'}});
-const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text());});page.on('dialog',d=>d.accept());
 try{
  await page.goto('http://127.0.0.1:5173');
  const fixture=await page.evaluate(async()=>{
@@ -30,7 +30,7 @@ try{
  await page.getByRole('button',{name:'Import screenshot',exact:true}).click();await page.getByLabel('Dataset name',{exact:true}).fill('Screenshot reach QA');
  await page.getByLabel('Source platform',{exact:true}).selectOption('instagram');await page.getByLabel('Platform report type',{exact:true}).selectOption('instagram-posts');await page.getByLabel('Platform account',{exact:true}).fill('QA account');
  await page.getByLabel('Current-month screenshot').setInputFiles({name:'reach.png',mimeType:'image/png',buffer:image});
- await page.getByLabel('Current month row 2 column 2',{exact:true}).waitFor({timeout:90000});
+ await page.getByRole('checkbox',{name:/I have checked the extracted/}).waitFor({timeout:90000});console.log('OCR review:',await page.locator('.screenshot-review').innerText());await page.getByLabel('Current month row 2 column 2',{exact:true}).waitFor({timeout:5000});
  await page.getByLabel('Current month heading 1',{exact:true}).fill('Post');await page.getByLabel('Current month heading 2',{exact:true}).fill('Reach');
  await page.getByLabel('Current month row 1 column 1',{exact:true}).fill('Alpha');await page.getByLabel('Current month row 1 column 2',{exact:true}).fill('1.2K');await page.getByLabel('Current month row 2 column 1',{exact:true}).fill('Beta');await page.getByLabel('Current month row 2 column 2',{exact:true}).fill('2.4K');
  await page.getByRole('checkbox',{name:/I have checked the extracted/}).check();await page.getByRole('button',{name:'Continue to column mapping',exact:true}).click();
@@ -51,4 +51,4 @@ try{
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
  console.log('PASS: commentary recovery, save and mobile layout');
  assert.deepEqual(errors,[]);
-}finally{await browser.close();}
+}catch(error){console.log('Browser QA state:',(await page.locator('body').innerText()).slice(-14000));await page.screenshot({path:'work/browser/failure.png',fullPage:true});throw error;}finally{await browser.close();}
