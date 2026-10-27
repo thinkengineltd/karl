@@ -8,7 +8,7 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +18,30 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm install --no-save --package-lock=false playwright@1.56.1 pdfjs-dist@4.10.38
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated local data and preview
+        run: |
+          mkdir -p work
+          for migration in drizzle/*.sql; do
+            npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file "$migration"
+          done
+          npx wrangler dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 5173 --inspector-port 0 > work/preview.log 2>&1 &
+          echo "$!" > work/preview.pid
+          for attempt in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat work/preview.log
+          exit 1
+      - run: node test/report-browser.mjs
+      - name: Retain QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-qa-evidence
+          path: work/
+      - name: Stop preview
+        if: always()
+        run: |
+          if [ -f work/preview.pid ]; then kill "$(cat work/preview.pid)" || true; fi
