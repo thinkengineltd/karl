@@ -1,0 +1,54 @@
+import {chromium} from 'playwright';
+import {readFile,mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
+await mkdir('work/browser',{recursive:true});
+const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:1480,height:1000},acceptDownloads:true,extraHTTPHeaders:{'oai-authenticated-user-id':'qa-owner','oai-authenticated-user-email':'karl@thinkengine.co'}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text());});page.on('dialog',d=>d.accept());
+try{
+ await page.goto('http://127.0.0.1:5173');
+ const fixture=await page.evaluate(async()=>{
+  const state=await (await fetch('/api/state')).json();
+  const post=async(path,body)=>{const r=await fetch('/api/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();};
+  const client=await post('clients',{name:'Report reliability QA',industry:'QA',services:['Analytics'],team:[],logo:''});
+  const report=await post('reports',{clientId:client.id,month:'2026-10',preparedBy:state.viewer.profileId,status:'Draft',team:[],lead:'',sections:[{id:'analytics',title:'Analytics',enabled:true,inputMode:'both',notes:'',headers:['Metric','Value'],rows:[]}],pdf:null});
+  return {client,report};
+ });
+ async function open(){await page.locator('.nav-item').filter({hasText:'Reports'}).first().click();await page.locator('.reports-table tbody tr').filter({hasText:fixture.client.name}).getByRole('button',{name:'Open report',exact:true}).click();}
+ await page.reload();await open();await page.getByRole('button',{name:'Data & insights',exact:true}).click();await page.getByRole('button',{name:'Import CSV',exact:true}).click();
+ await page.getByLabel('Current-month CSV').setInputFiles({name:'current.csv',mimeType:'text/csv',buffer:Buffer.from('Campaign,CTR\nA,10%')});
+ await page.getByLabel('Previous-month CSV').setInputFiles({name:'previous.csv',mimeType:'text/csv',buffer:Buffer.from('Campaign,CTR\nA,0.05')});
+ await page.getByLabel('CTR previous-month units',{exact:true}).selectOption('ratio');await page.getByLabel('Confirm previous CTR scale',{exact:true}).check();await page.getByRole('checkbox',{name:/I verified the account/}).check();await page.getByRole('button',{name:'Import and analyse',exact:true}).click();
+ await page.getByRole('heading',{name:'Analytics data',exact:true}).waitFor();
+ let datasets=await page.evaluate(async id=>(await (await fetch('/api/reports/'+id+'/datasets')).json()).datasets,fixture.report.id);
+ assert.equal(datasets[0].analysis.snapshots[0].change.points,5);assert.equal(datasets[0].analysis.snapshots[0].previous,5);assert.equal(datasets[0].analysis.comparisonStatus,'full');
+ console.log('PASS: independent previous-month percentage scale in browser');
+ const source=await browser.newPage({viewport:{width:1200,height:320}});
+ await source.setContent('<html><head><style>td{padding:20px 0}</style></head><body style="margin:35px;font:28px Arial"><table style="width:100%;border-collapse:collapse;text-align:left"><tr><th style="width:55%">Post</th><th>Reach</th></tr><tr><td>Alpha</td><td>1.2K</td></tr><tr><td>Beta</td><td>2.4K</td></tr></table></body></html>');
+ const image=await source.screenshot();await source.close();
+ await page.getByRole('button',{name:'Import screenshot',exact:true}).click();await page.getByLabel('Dataset name',{exact:true}).fill('Screenshot reach QA');
+ await page.getByLabel('Source platform',{exact:true}).selectOption('instagram');await page.getByLabel('Platform report type',{exact:true}).selectOption('instagram-posts');await page.getByLabel('Platform account',{exact:true}).fill('QA account');
+ await page.getByLabel('Current-month screenshot').setInputFiles({name:'reach.png',mimeType:'image/png',buffer:image});
+ await page.getByRole('checkbox',{name:/I have checked the extracted/}).waitFor({timeout:90000});console.log('OCR raw:',await page.locator('.screenshot-review pre').textContent());console.log('OCR review:',await page.locator('.screenshot-review').innerText());await page.getByLabel('Current month row 2 column 2',{exact:true}).waitFor({timeout:5000});
+ await page.getByLabel('Current month heading 1',{exact:true}).fill('Post');await page.getByLabel('Current month heading 2',{exact:true}).fill('Reach');
+ await page.getByLabel('Current month row 1 column 1',{exact:true}).fill('Alpha');await page.getByLabel('Current month row 1 column 2',{exact:true}).fill('1.2K');await page.getByLabel('Current month row 2 column 1',{exact:true}).fill('Beta');await page.getByLabel('Current month row 2 column 2',{exact:true}).fill('2.4K');
+ await page.getByRole('checkbox',{name:/I have checked the extracted/}).check();await page.getByRole('button',{name:'Continue to column mapping',exact:true}).click();
+ await page.getByRole('checkbox',{name:/I verified the account/}).check();await page.getByRole('button',{name:'Import and analyse',exact:true}).click();await page.getByRole('heading',{name:'Screenshot reach QA',exact:true}).waitFor();
+ datasets=await page.evaluate(async id=>(await (await fetch('/api/reports/'+id+'/datasets')).json()).datasets,fixture.report.id);
+ const reach=datasets.find(d=>d.name==='Screenshot reach QA');assert.equal(reach.analysis.snapshots[0].current,null);assert.equal(reach.analysis.top10ByMetric.reach[0].current,2400);assert.ok(reach.analysis.warnings.some(w=>w.includes('approximate')));assert.equal(reach.sourceType,'screenshot');
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export PDF',exact:true}).click();const pdfDownload=await download;await pdfDownload.saveAs('work/browser/report.pdf');
+ const bytes=await readFile('work/browser/report.pdf'),pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;let pdfText='';for(let i=1;i<=pdf.numPages;i++)pdfText+=(await (await pdf.getPage(i)).getTextContent()).items.map(x=>x.str).join(' ')+' ';
+ assert.ok(pdfText.includes('Fully comparable'));assert.ok(pdfText.includes('approximate'));assert.ok(pdfText.includes('Screenshot reach QA'));assert.ok(pdfText.includes('5 pp'));
+ console.log('PASS: real OCR review, K values, reach-only rankings and PDF provenance/caveats');
+ await page.getByRole('button',{name:'Analytics',exact:true}).click();await page.getByLabel('Summary',{exact:true}).fill('Unsaved recovery QA');await page.getByText(/Recovery draft saved on this browser/).waitFor();await page.reload();await open();await page.getByRole('dialog',{name:'Recover unsaved report',exact:true}).waitFor();await page.getByRole('button',{name:'Restore draft',exact:true}).click();assert.equal(await page.getByLabel('Summary',{exact:true}).inputValue(),'Unsaved recovery QA');
+ await page.evaluate(async id=>{const state=await (await fetch('/api/state')).json(),r=state.reports.find(r=>r.id===id);r.sections[0].notes='Concurrent saved update';const result=await fetch('/api/reports/'+id,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(r)});if(!result.ok)throw Error(await result.text());},fixture.report.id);
+ await page.reload();await open();await page.getByRole('dialog',{name:'Recover unsaved report',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Restore draft',exact:true}).count(),0);await page.getByRole('button',{name:'Discard draft and open latest',exact:true}).click();assert.equal(await page.getByLabel('Summary',{exact:true}).inputValue(),'Concurrent saved update');
+ console.log('PASS: refresh recovery and concurrent-revision protection');
+ await page.getByRole('button',{name:'Data & insights',exact:true}).click();await page.getByLabel('Written insights for Analytics data',{exact:true}).fill('Recovered commentary QA');await page.getByText('Commentary recovery draft saved on this browser',{exact:true}).waitFor();await page.reload();await open();await page.getByRole('button',{name:'Data & insights',exact:true}).click();await page.getByRole('button',{name:'Restore commentary draft',exact:true}).click();assert.equal(await page.getByLabel('Written insights for Analytics data',{exact:true}).inputValue(),'Recovered commentary QA');
+ await page.getByLabel('Written insights for Analytics data',{exact:true}).locator('..').locator('..').getByRole('button',{name:'Save insights to report',exact:true}).click();
+ await page.getByText('Written insights saved to the report',{exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
+ console.log('PASS: commentary recovery, save and mobile layout');
+ assert.deepEqual(errors,[]);
+}catch(error){console.log('Browser QA state:',(await page.locator('body').innerText()).slice(-14000));await page.screenshot({path:'work/browser/failure.png',fullPage:true});throw error;}finally{await browser.close();}

@@ -2,11 +2,13 @@ import Papa from 'papaparse';
 export const MAX_ROWS=10000;
 export const normalise=s=>String(s??'').normalize('NFKC').trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
 export function previousMonth(month){const [y,m]=month.split('-').map(Number);return new Date(Date.UTC(y,m-2,1)).toISOString().slice(0,7);}
-export function numeric(value,locale='standard'){
- let s=String(value??'').trim();if(!s||/^(?:-|–|—|n\/a|null|not set|not provided)$/i.test(s))return null;
+export function numeric(value,locale='standard',format=null){
+ let s=String(value??'').trim();if(format&&format!=='seconds'&&/\d\s*m$/i.test(s)&&!s.endsWith('M'))return null;if(!s||/^(?:-|–|—|n\/a|null|not set|not provided)$/i.test(s))return null;
+ const abbreviated=s.match(/^([£$€]?\s*[+-]?[\d.,]+)\s*([kKMBb])$/);if(abbreviated&&format!=='seconds'){const base=numeric(abbreviated[1],locale);const n=base===null?null:base*({k:1e3,m:1e6,b:1e9}[abbreviated[2].toLowerCase()]);return n!==null&&Number.isFinite(n)&&Math.abs(n)<1e15?n:null;}
  if(/^\d{1,3}:\d{2}(?::\d{2})?$/.test(s)){const p=s.split(':').map(Number);return p.length===3?p[0]*3600+p[1]*60+p[2]:p[0]*60+p[1];}
  if(/^\d+(?:\.\d+)?s$/i.test(s))s=s.slice(0,-1);
  const duration=s.match(/^(?:(\d+(?:\.\d+)?)h\s*)?(?:(\d+(?:\.\d+)?)m\s*)?(?:(\d+(?:\.\d+)?)s)?$/i);if(duration&&duration.slice(1).some(Boolean))return Number(duration[1]||0)*3600+Number(duration[2]||0)*60+Number(duration[3]||0);
+
  const negative=/^\(.*\)$/.test(s);s=s.replace(/[£$€%\s\u00a0]/g,'').replace(/^\((.*)\)$/,'$1').replace(/−/g,'-');
  s=locale==='european'?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
  if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s))return null;
@@ -64,18 +66,30 @@ export function validateMapping(parsed,config){
  if(!['standard','european'].includes(config.locale))throw new Error('Choose a valid number format.');
  return config;
 }
+export const isAbbreviated=value=>/[kKMBb]$/.test(String(value??'').trim())&&numeric(value)!==null;
+export const hasUsableValues=data=>data.rows.some(r=>Object.values(r.values).some(v=>v!==null&&v!==undefined));
+export function convertRate(value,from,to){return value===null||value===undefined?null:from===to?value:from==='ratio'&&to==='percent'?value*100:from==='percent'&&to==='ratio'?value/100:value;}
+export function alignBaseline(config,previous){
+ const baseline=structuredClone(previous.current),warnings=[];
+ if(normalise(config.dimensionLabel)!==normalise(previous.config.dimensionLabel))return {baseline:null,warnings:['Previous-month label column differs; map a matching label column before comparing.']};
+ for(const metric of config.metrics){const old=previous.config.metrics.find(m=>m.key===metric.key),rate=old&&['percent','ratio'].includes(old.format)&&['percent','ratio'].includes(metric.format);const valid=old&&(rate||old.format===metric.format)&&old.aggregation===metric.aggregation&&(!metric.definition||metric.definition===old.definition)&&(metric.aggregation!=='weighted'||normalise(metric.weightLabel)===normalise(old.weightLabel));
+ if(!valid){baseline.totals[metric.key]=null;for(const row of baseline.rows)row.values[metric.key]=null;warnings.push('No comparable previous-month '+metric.label+': units, definition or calculation differ.');}
+ else if(rate){baseline.totals[metric.key]=convertRate(baseline.totals[metric.key],old.format,metric.format);for(const row of baseline.rows)row.values[metric.key]=convertRate(row.values[metric.key],old.format,metric.format);}}
+ return {baseline,warnings};
+}
+export function comparisonLabel(analysis){return analysis.comparisonStatus==='full'?'Fully comparable':analysis.comparisonStatus==='partial'?'Partially comparable':'No comparable metrics';}
 export function aggregate(parsed,config){
- validateMapping(parsed,config);const groups=new Map(),totals=Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]));let excluded=0,invalid=0,missingWeights=0;
+ validateMapping(parsed,config);const groups=new Map(),totals=Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]));let excluded=0,invalid=0,missingWeights=0,approximateCells=0;const approximateMetrics=new Set();
  for(const row of parsed.rows){const label=String(row[config.dimensionColumn]??'').trim();
  if(!label||/^(?:grand\s*total|total|totals)(?:\s*[:\-].*)?$/i.test(label)||/^(?:account|campaign|filtered)\s+total/i.test(label)){excluded++;continue;}
  const key=label.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');if(!groups.has(key))groups.set(key,{key,label,stats:Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]))});const group=groups.get(key);
- for(const m of config.metrics){const n=numeric(row[m.column],config.locale);if(n===null||(m.format==='rank'&&n<=0)){invalid++;continue;}let weight=1;if(m.aggregation==='weighted'){weight=numeric(row[m.weightColumn],config.locale);if(weight===null||weight<=0){missingWeights++;continue;}}
+ for(const m of config.metrics){const n=numeric(row[m.column],config.locale,m.format);if((m.format!=='seconds'&&isAbbreviated(row[m.column]))||isAbbreviated(row[m.weightColumn])||parsed.approximateColumns?.includes(m.column)){approximateCells++;approximateMetrics.add(m.key);}if(n===null||(m.format==='rank'&&n<=0)){invalid++;continue;}let weight=1;if(m.aggregation==='weighted'){weight=numeric(row[m.weightColumn],config.locale,'number');if(weight===null||weight<=0){missingWeights++;continue;}}
  for(const target of [totals[m.key],group.stats[m.key]]){target.sum+=n*weight;target.count++;target.weight+=weight;target.min=Math.min(target.min,n);target.max=Math.max(target.max,n);}}
  }
  const value=(x,m)=>!x.count?null:m.aggregation==='snapshot'?(x.min===x.max?x.min:null):m.aggregation==='sum'?x.sum:x.sum/x.weight;
- return {rows:[...groups.values()].map(g=>({key:g.key,label:g.label,values:Object.fromEntries(config.metrics.map(m=>[m.key,value(g.stats[m.key],m)]))})),totals:Object.fromEntries(config.metrics.map(m=>[m.key,value(totals[m.key],m)])),sourceRows:parsed.rows.length,includedRows:parsed.rows.length-excluded,excludedRows:excluded,invalidCells:invalid,missingWeights,snapshotConflicts:config.metrics.filter(m=>m.aggregation==='snapshot'&&totals[m.key].count&&totals[m.key].min!==totals[m.key].max).map(m=>m.label)};
+ return {rows:[...groups.values()].map(g=>({key:g.key,label:g.label,values:Object.fromEntries(config.metrics.map(m=>[m.key,value(g.stats[m.key],m)]))})),totals:Object.fromEntries(config.metrics.map(m=>[m.key,value(totals[m.key],m)])),sourceRows:parsed.rows.length,includedRows:parsed.rows.length-excluded,excludedRows:excluded,invalidCells:invalid,missingWeights,approximateCells,approximateMetrics:[...approximateMetrics],snapshotConflicts:config.metrics.filter(m=>m.aggregation==='snapshot'&&totals[m.key].count&&totals[m.key].min!==totals[m.key].max).map(m=>m.label)};
 }
-export function formatValue(value,metric){if(value===null||value===undefined)return '—';const n=Number(value),format=metric.format;const opts={maximumFractionDigits:format==='rank'?1:2};
+export function formatValue(value,metric){if(value===null||value===undefined)return '—';const n=Number(value),format=metric.format;if(metric.approximate)return '≈ '+formatValue(value,{...metric,approximate:false});const opts={maximumFractionDigits:format==='rank'?1:2};
  if(['gbp','usd','eur'].includes(format))return new Intl.NumberFormat('en-GB',{style:'currency',currency:format.toUpperCase(),maximumFractionDigits:2}).format(n);
  if(format==='ratio')return (n*100).toLocaleString('en-GB',opts)+'%';if(format==='percent')return n.toLocaleString('en-GB',opts)+'%';
  if(format==='seconds'){const sign=n<0?'-':'';const a=Math.round(Math.abs(n));return sign+Math.floor(a/60)+'m '+a%60+'s';}
@@ -84,22 +98,23 @@ export function formatValue(value,metric){if(value===null||value===undefined)ret
 export function change(current,previous,metric){if(current===null||previous===null||current===undefined||previous===undefined)return null;const delta=current-previous;const relative=previous===0?null:delta/Math.abs(previous)*100;const points=['ratio','percent'].includes(metric.format)?delta*(metric.format==='ratio'?100:1):null;return {delta,relative,points,improving:delta===0||metric.direction==='neutral'?null:metric.direction==='lower'?delta<0:delta>0};}
 export function formatChange(c,metric){if(!c)return 'No comparison';if(c.delta===0)return 'No change';const signed=n=>(n>0?'+':'')+n.toLocaleString('en-GB',{maximumFractionDigits:2});if(c.points!==null)return signed(c.points)+' pp';if(metric.format==='rank')return (c.delta<0?'Up ':'Down ')+Math.abs(c.delta).toLocaleString('en-GB',{maximumFractionDigits:1})+(Math.abs(c.delta)===1?' position':' positions');if(c.relative===null)return 'From zero · '+(c.delta>0?'+':'')+formatValue(c.delta,metric);return signed(c.relative)+'%';}
 export function buildAnalysis(current,baseline,config,{month,baselineSource=null,baselineLabel=null}={}){
- const previous=new Map((baseline?.rows||[]).map(r=>[r.key,r]));const warnings=[];
+ const comparableKeys=config.metrics.filter(m=>baseline&&((baseline.totals[m.key]!=null&&current.totals[m.key]!=null)||current.rows.some(r=>r.values[m.key]!=null&&baseline.rows.some(old=>old.key===r.key&&old.values[m.key]!=null)))).map(m=>m.key);const hasBaseline=comparableKeys.length>0;const previous=new Map((hasBaseline?baseline.rows:[]).map(r=>[r.key,r]));const warnings=[];
+ if(current.approximateCells||baseline?.approximateCells)warnings.push('Rounded source values were expanded from K/M/B notation. Values, rankings and changes based on them are approximate.');
  if(current.excludedRows)warnings.push(current.excludedRows+' blank or total rows excluded.');if(current.invalidCells)warnings.push(current.invalidCells+' missing or invalid metric cells excluded; missing values are not treated as zero.');if(current.missingWeights)warnings.push(current.missingWeights+' cells lacked positive weights and were excluded from weighted averages.');
  for(const m of config.metrics){if(m.aggregation==='average'&&/rate|ctr|cpc|cpm|cpa|roas|position/.test(m.key))warnings.push(m.label+' uses an unweighted average. Select a weight column when available.');}
  if(baseline?.invalidCells)warnings.push('Previous-month data has '+baseline.invalidCells+' missing or invalid metric cells.');
  for(const label of current.snapshotConflicts||[])warnings.push(label+' has multiple distinct snapshot values. Its overall total is unavailable; unique audiences/follower totals are not summed.');
  for(const label of baseline?.snapshotConflicts||[])warnings.push('Previous-month '+label+' has conflicting snapshot values.');
- const snapshots=config.metrics.map(m=>({...m,current:current.totals[m.key]??null,previous:baseline?.totals[m.key]??null,change:change(current.totals[m.key],baseline?.totals[m.key],m)}));
+ const snapshots=config.metrics.map(m=>({...m,approximate:current.approximateMetrics?.includes(m.key)||baseline?.approximateMetrics?.includes(m.key)||false,current:current.totals[m.key]??null,previous:baseline?.totals[m.key]??null,change:change(current.totals[m.key],baseline?.totals[m.key],m)}));
  const top10ByMetric={},moversByMetric={};
- for(const m of config.metrics){const enriched=current.rows.filter(r=>r.values[m.key]!==null).map(r=>({label:r.label,key:r.key,current:r.values[m.key],previous:previous.get(r.key)?.values[m.key]??null,change:change(r.values[m.key],previous.get(r.key)?.values[m.key],m),isNew:!!baseline&&!previous.has(r.key)}));
+ for(const m of config.metrics){const enriched=current.rows.filter(r=>r.values[m.key]!=null).map(r=>({label:r.label,key:r.key,current:r.values[m.key],previous:previous.get(r.key)?.values[m.key]??null,change:change(r.values[m.key],previous.get(r.key)?.values[m.key],m),isNew:hasBaseline&&comparableKeys.includes(m.key)&&!previous.has(r.key)}));
  top10ByMetric[m.key]=[...enriched].sort((a,b)=>(m.direction==='lower'?a.current-b.current:b.current-a.current)||a.label.localeCompare(b.label)).slice(0,10);
  moversByMetric[m.key]=enriched.filter(r=>r.change&&r.change.delta!==0).sort((a,b)=>Math.abs(b.change.delta)-Math.abs(a.change.delta)||a.label.localeCompare(b.label)).slice(0,10);}
  const currentKeys=new Set(current.rows.map(r=>r.key));const disappeared=(baseline?.rows||[]).filter(r=>!currentKeys.has(r.key)).slice(0,10).map(r=>r.label);
- return {month,previousMonth:previousMonth(month),baselineSource,baselineLabel,hasBaseline:!!baseline,snapshots,top10ByMetric,moversByMetric,disappeared,warnings,rows:current.sourceRows,groupCount:current.rows.length,baselineRows:baseline?.sourceRows||0,generatedAt:new Date().toISOString()};
+ return {month,previousMonth:previousMonth(month),baselineSource,baselineLabel,hasBaseline,matchedBaseline:!!baseline,comparisonStatus:comparableKeys.length>0&&comparableKeys.length===config.metrics.length?'full':hasBaseline?'partial':'none',comparableMetrics:comparableKeys,snapshots,top10ByMetric,moversByMetric,disappeared,warnings,rows:current.sourceRows,groupCount:current.rows.length,baselineRows:hasBaseline?baseline.sourceRows:0,generatedAt:new Date().toISOString()};
 }
-export function factualSummary(analysis){const lines=[];for(const m of analysis.snapshots.slice(0,6)){if(m.current===null)continue;let text=m.label+': '+formatValue(m.current,m)+'.';if(m.previous!==null)text+=' Previous month: '+formatValue(m.previous,m)+' ('+formatChange(m.change,m)+').';lines.push(text);}if(!analysis.hasBaseline)lines.push('No comparable previous-month data is available. Month-on-month changes cannot be assessed.');return lines.join('\n');}
-export function analysisFacts(analysis,rankMetric){const facts=[{id:'data_coverage',text:analysis.rows+' source rows and '+analysis.groupCount+' label groups in the current file; '+analysis.baselineRows+' source rows in the previous file.'}];for(const m of analysis.snapshots){facts.push({id:'metric_'+m.key,text:m.label+': current '+formatValue(m.current,m)+', previous '+formatValue(m.previous,m)+', change '+formatChange(m.change,m)+'.',aggregation:m.aggregation,definition:m.definition||null});}
+export function factualSummary(analysis){const lines=[comparisonLabel(analysis)+'.'];for(const m of analysis.snapshots.slice(0,6)){if(m.current===null)continue;let text=m.label+': '+formatValue(m.current,m)+'.';if(m.previous!==null)text+=' Previous month: '+formatValue(m.previous,m)+' ('+formatChange(m.change,m)+').';lines.push(text);}if(!analysis.hasBaseline)lines.push('No comparable previous-month data is available. Month-on-month changes cannot be assessed.');return lines.join('\n');}
+export function analysisFacts(analysis,rankMetric){const facts=[{id:'comparison_status',text:comparisonLabel(analysis)+'. '+analysis.warnings.join(' ')},{id:'data_coverage',text:analysis.rows+' source rows and '+analysis.groupCount+' label groups in the current file; '+analysis.baselineRows+' source rows in the previous file.'}];for(const m of analysis.snapshots){facts.push({id:'metric_'+m.key,text:m.label+': current '+formatValue(m.current,m)+', previous '+formatValue(m.previous,m)+', change '+formatChange(m.change,m)+'.',aggregation:m.aggregation,definition:m.definition||null});}
  const metric=analysis.snapshots.find(m=>m.key===rankMetric);for(const [i,r] of (analysis.top10ByMetric[rankMetric]||[]).entries())facts.push({id:'top_'+(i+1),text:'#'+(i+1)+' '+r.label+': '+formatValue(r.current,metric)+'; previous '+formatValue(r.previous,metric)+'; '+(r.isNew?'not present in the baseline file':formatChange(r.change,metric))+'.'});
  for(const [i,r] of (analysis.moversByMetric[rankMetric]||[]).entries())facts.push({id:'movement_'+(i+1),text:r.label+': current '+formatValue(r.current,metric)+', previous '+formatValue(r.previous,metric)+', change '+formatChange(r.change,metric)+'.'});
  return facts;

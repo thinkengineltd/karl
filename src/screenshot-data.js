@@ -1,4 +1,4 @@
-const valuePattern=/^(?:[£$€]?\s*\(?[+-]?\d[\d,.]*(?:\s*[%x])?\)?|[-–—]|n\/?a)$/i;
+const valuePattern=/^(?:[£$€]?\s*\(?[+-]?\d[\d,.]*(?:\s*[%xkmb])?\)?|[-–—]|n\/?a)$/i;
 const isValue=value=>valuePattern.test(String(value).trim());
 const clean=line=>line.replace(/[\u2018\u2019]/g,"'").trim();
 export function extractScreenshotTable(text,confidence=0){
