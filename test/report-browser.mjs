@@ -3,7 +3,7 @@ import {readFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
 await mkdir('work/browser',{recursive:true});
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
 const page=await browser.newPage({viewport:{width:1480,height:1000},acceptDownloads:true,extraHTTPHeaders:{'oai-authenticated-user-id':'qa-owner','oai-authenticated-user-email':'karl@thinkengine.co'}});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text());});page.on('dialog',d=>d.accept());
 try{
