@@ -4,7 +4,7 @@ export const normalise=s=>String(s??'').normalize('NFKC').trim().toLowerCase().r
 export function previousMonth(month){const [y,m]=month.split('-').map(Number);return new Date(Date.UTC(y,m-2,1)).toISOString().slice(0,7);}
 export function numeric(value,locale='standard',format=null){
  let s=String(value??'').trim();if(format&&format!=='seconds'&&/\d\s*m$/i.test(s)&&!s.endsWith('M'))return null;if(!s||/^(?:-|–|—|n\/a|null|not set|not provided)$/i.test(s))return null;
- const abbreviated=s.match(/^([£$€]?\s*[+-]?[\d.,]+)\s*([kKMBb])$/);if(abbreviated){const base=numeric(abbreviated[1],locale);const n=base===null?null:base*({k:1e3,m:1e6,b:1e9}[abbreviated[2].toLowerCase()]);return n!==null&&Number.isFinite(n)&&Math.abs(n)<1e15?n:null;}
+ const abbreviated=s.match(/^([£$€]?\s*[+-]?[\d.,]+)\s*([kKMBb])$/);if(abbreviated&&format!=='seconds'){const base=numeric(abbreviated[1],locale);const n=base===null?null:base*({k:1e3,m:1e6,b:1e9}[abbreviated[2].toLowerCase()]);return n!==null&&Number.isFinite(n)&&Math.abs(n)<1e15?n:null;}
  if(/^\d{1,3}:\d{2}(?::\d{2})?$/.test(s)){const p=s.split(':').map(Number);return p.length===3?p[0]*3600+p[1]*60+p[2]:p[0]*60+p[1];}
  if(/^\d+(?:\.\d+)?s$/i.test(s))s=s.slice(0,-1);
  const duration=s.match(/^(?:(\d+(?:\.\d+)?)h\s*)?(?:(\d+(?:\.\d+)?)m\s*)?(?:(\d+(?:\.\d+)?)s)?$/i);if(duration&&duration.slice(1).some(Boolean))return Number(duration[1]||0)*3600+Number(duration[2]||0)*60+Number(duration[3]||0);
@@ -83,7 +83,7 @@ export function aggregate(parsed,config){
  for(const row of parsed.rows){const label=String(row[config.dimensionColumn]??'').trim();
  if(!label||/^(?:grand\s*total|total|totals)(?:\s*[:\-].*)?$/i.test(label)||/^(?:account|campaign|filtered)\s+total/i.test(label)){excluded++;continue;}
  const key=label.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');if(!groups.has(key))groups.set(key,{key,label,stats:Object.fromEntries(config.metrics.map(m=>[m.key,{sum:0,count:0,weight:0,min:Infinity,max:-Infinity}]))});const group=groups.get(key);
- for(const m of config.metrics){const n=numeric(row[m.column],config.locale,m.format);if(isAbbreviated(row[m.column])||isAbbreviated(row[m.weightColumn])||parsed.approximateColumns?.includes(m.column)){approximateCells++;approximateMetrics.add(m.key);}if(n===null||(m.format==='rank'&&n<=0)){invalid++;continue;}let weight=1;if(m.aggregation==='weighted'){weight=numeric(row[m.weightColumn],config.locale,'number');if(weight===null||weight<=0){missingWeights++;continue;}}
+ for(const m of config.metrics){const n=numeric(row[m.column],config.locale,m.format);if((m.format!=='seconds'&&isAbbreviated(row[m.column]))||isAbbreviated(row[m.weightColumn])||parsed.approximateColumns?.includes(m.column)){approximateCells++;approximateMetrics.add(m.key);}if(n===null||(m.format==='rank'&&n<=0)){invalid++;continue;}let weight=1;if(m.aggregation==='weighted'){weight=numeric(row[m.weightColumn],config.locale,'number');if(weight===null||weight<=0){missingWeights++;continue;}}
  for(const target of [totals[m.key],group.stats[m.key]]){target.sum+=n*weight;target.count++;target.weight+=weight;target.min=Math.min(target.min,n);target.max=Math.max(target.max,n);}}
  }
  const value=(x,m)=>!x.count?null:m.aggregation==='snapshot'?(x.min===x.max?x.min:null):m.aggregation==='sum'?x.sum:x.sum/x.weight;
