@@ -2,12 +2,13 @@ import {chromium} from 'playwright';
 import {readFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
-await mkdir('work/browser',{recursive:true});
-const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
-const page=await browser.newPage({viewport:{width:1480,height:1000},acceptDownloads:true,extraHTTPHeaders:{'oai-authenticated-user-id':'qa-owner','oai-authenticated-user-email':'karl@thinkengine.co'}});
+const output=process.env.QA_OUTPUT||'dist/qa/browser';
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch({...process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{channel:'chrome'},headless:true,args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:1480,height:1000},acceptDownloads:true,...process.env.PREVIEW_PASSWORD?{httpCredentials:{username:'preview',password:process.env.PREVIEW_PASSWORD}}:{}});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text());});page.on('dialog',d=>d.accept());
 try{
- await page.goto('http://127.0.0.1:5173');
+ await page.goto(process.env.QA_BASE_URL||'http://127.0.0.1:5173');
  const fixture=await page.evaluate(async()=>{
   const state=await (await fetch('/api/state')).json();
   const post=async(path,body)=>{const r=await fetch('/api/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();};
@@ -37,8 +38,8 @@ try{
  await page.getByRole('checkbox',{name:/I verified the account/}).check();await page.getByRole('button',{name:'Import and analyse',exact:true}).click();await page.getByRole('heading',{name:'Screenshot reach QA',exact:true}).waitFor();
  datasets=await page.evaluate(async id=>(await (await fetch('/api/reports/'+id+'/datasets')).json()).datasets,fixture.report.id);
  const reach=datasets.find(d=>d.name==='Screenshot reach QA');assert.equal(reach.analysis.snapshots[0].current,null);assert.equal(reach.analysis.top10ByMetric.reach[0].current,2400);assert.ok(reach.analysis.warnings.some(w=>w.includes('approximate')));assert.equal(reach.sourceType,'screenshot');
- const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export PDF',exact:true}).click();const pdfDownload=await download;await pdfDownload.saveAs('work/browser/report.pdf');
- const bytes=await readFile('work/browser/report.pdf'),pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;let pdfText='';for(let i=1;i<=pdf.numPages;i++)pdfText+=(await (await pdf.getPage(i)).getTextContent()).items.map(x=>x.str).join(' ')+' ';
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export PDF',exact:true}).click();const pdfDownload=await download;await pdfDownload.saveAs(`${output}/report.pdf`);
+ const bytes=await readFile(`${output}/report.pdf`),pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;let pdfText='';for(let i=1;i<=pdf.numPages;i++)pdfText+=(await (await pdf.getPage(i)).getTextContent()).items.map(x=>x.str).join(' ')+' ';
  assert.ok(pdfText.includes('Fully comparable'));assert.ok(pdfText.includes('approximate'));assert.ok(pdfText.includes('Screenshot reach QA'));assert.ok(pdfText.includes('5 pp'));
  console.log('PASS: real OCR review, K values, reach-only rankings and PDF provenance/caveats');
  await page.getByRole('button',{name:'Analytics',exact:true}).click();await page.getByLabel('Summary',{exact:true}).fill('Unsaved recovery QA');await page.getByText(/Recovery draft saved on this browser/).waitFor();await page.reload();await open();await page.getByRole('dialog',{name:'Recover unsaved report',exact:true}).waitFor();await page.getByRole('button',{name:'Restore draft',exact:true}).click();assert.equal(await page.getByLabel('Summary',{exact:true}).inputValue(),'Unsaved recovery QA');
@@ -48,7 +49,7 @@ try{
  await page.getByRole('button',{name:'Data & insights',exact:true}).click();await page.getByLabel('Written insights for Analytics data',{exact:true}).fill('Recovered commentary QA');await page.getByText('Commentary recovery draft saved on this browser',{exact:true}).waitFor();await page.reload();await open();await page.getByRole('button',{name:'Data & insights',exact:true}).click();await page.getByRole('button',{name:'Restore commentary draft',exact:true}).click();assert.equal(await page.getByLabel('Written insights for Analytics data',{exact:true}).inputValue(),'Recovered commentary QA');
  await page.getByLabel('Written insights for Analytics data',{exact:true}).locator('..').locator('..').getByRole('button',{name:'Save insights to report',exact:true}).click();
  await page.getByText('Written insights saved to the report',{exact:true}).waitFor();
- await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:`${output}/mobile.png`,fullPage:true});
  console.log('PASS: commentary recovery, save and mobile layout');
  assert.deepEqual(errors,[]);
-}catch(error){console.log('Browser QA state:',(await page.locator('body').innerText()).slice(-14000));await page.screenshot({path:'work/browser/failure.png',fullPage:true});throw error;}finally{await browser.close();}
+}catch(error){console.log('Browser QA state:',(await page.locator('body').innerText()).slice(-14000));await page.screenshot({path:`${output}/failure.png`,fullPage:true});throw error;}finally{await browser.close();}

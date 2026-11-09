@@ -28,18 +28,34 @@ Use Node.js 22 or newer.
 
 ```sh
 npm ci
-npm test
-npm run build
-npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_cynical_queen_noir.sql
-npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_fine_starhawk.sql
-npx wrangler dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --port 5173 --inspector-port 0
+npm run setup
+npm run dev
 ```
 
-Also apply `drizzle/0002_peaceful_nightcrawler.sql` and `drizzle/0003_small_blade.sql` once to an existing local database before starting this version. For a fresh database, apply all migrations in order.
+`dev` builds the app, applies pending local D1 migrations, starts local D1/R2,
+and watches source changes. Open the local app on port 5173. No Cloudflare
+credentials are required. Repeated setup preserves preview data and applies
+only pending migrations. Optional AI settings are read from the root `.dev.vars`.
 
-For browser development, copy `.dev.vars.example` to `dist/server/.dev.vars` and uncomment `LOCAL_DEV_AUTH` and `LOCAL_DEV_USER_EMAIL`. This optional development identity works only on loopback URLs without Sites dispatch headers; never configure these variables on the hosted Site.
+For **a new Base Code project in an existing Base44 workspace**, connect this
+GitHub repository and follow [the Base Code setup guide](docs/base-code.md).
+Forwarded previews use `HOST=0.0.0.0`, `PORT`, and a secret `PREVIEW_PASSWORD`.
+The public gateway signs into an isolated development administrator account;
+production staff authentication remains on the hosted Site.
 
-Apply each migration once to a fresh local database. Production schema changes are generated through `npm run db:generate` and deployed through Sites. Local state, dependency folders, generated build output and secret files are excluded from Git.
+Validation:
+
+```sh
+npm test
+npm run build
+npm run test:browser
+```
+
+Browser checks need a running dev server with a fresh `KARL_LOCAL_STATE` and
+Google Chrome or `CHROMIUM_PATH`. They modify test data. See the guide for
+authentication and artifact settings. Production schema changes are generated
+through `npm run db:generate` and deployed through Sites. Local state,
+dependency folders, generated output and secret files are excluded from Git.
 
 ## Preview sessions
 
@@ -85,7 +101,7 @@ AI drafts use the OpenAI Responses API, server-side only. They are grounded in c
 
 Configure `OPENAI_API_KEY` as a secret in the Site's runtime environment to enable generation. `OPENAI_MODEL` is optional and defaults to `gpt-4.1-mini`. Do not put API keys in browser code, database records or Git. API usage is charged to the connected OpenAI account.
 
-For local testing, copy `.dev.vars.example` to `dist/server/.dev.vars` after building and add your development key. Without a configured key, CSV analysis and manual commentary work normally, and the app shows the remaining AI connection requirement. Automated tests use mocked AI responses; no live API key is included.
+For local testing, copy `.dev.vars.example` to `.dev.vars` at the repository root and add your development key, or set `OPENAI_API_KEY` in the development process environment, then restart `npm run dev`. Without a configured key, CSV analysis and manual commentary work normally, and the app shows the remaining AI connection requirement. Automated tests use mocked AI responses; no live API key is included.
 
 ## Source layout
 
