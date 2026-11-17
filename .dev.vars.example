@@ -1,7 +1,8 @@
-# Local-only Worker secrets. Copy to .dev.vars and keep it out of Git.
+# Optional local Worker secrets. Copy to .dev.vars and keep it out of Git.
+# npm run dev reads these two values; Base Code secrets with the same names also work.
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 
-# Optional identity for loopback-only local previews; never configure on the hosted Site.
-# LOCAL_DEV_AUTH=true
-# LOCAL_DEV_USER_EMAIL=karl@thinkengine.co
+# npm run dev configures its own loopback-only development identity and local storage.
+# For shared previews, set HOST, PORT, PREVIEW_PASSWORD and optionally PREVIEW_ORIGIN
+# in the process environment (Base Code secrets/settings), not in this file.
